@@ -1,0 +1,178 @@
+.data
+Prompt_encDec: .asciiz "type 'e' to encrypt or 'd' to decrypt: "
+Prompt_AddKey: .asciiz "choose an addition key: "
+Prompt_ChooseBitToggle: .asciiz "choose a bit to toggle (0-7): "
+Prompt_AskForText: .asciiz "enter text: "
+Display_EncryptedText: .asciiz "encrypted text: "
+Display_DecryptedText: .asciiz "decrypted text: "
+inputBuffer: .space 20
+outputBuffer: .space 20
+.text
+######################################################################
+#Get Data From User
+######################################################################
+#prompt user to input ’e’ or ’d’
+li $v0,4
+la $a0,Prompt_encDec
+syscall
+#read user input of a character
+li $v0,12	#set syscall to read char
+syscall
+move $s0, $v0	#save user input to $s0
+#trap if user input is not e' or 'd'
+tgei $s0, 102 #traps ascii character from 102 and up  (more than 'e')
+tlti $s0,100 #traps ascii characters from 0-99 (less than 'd')
+#################################################
+#prompt user to choose an addition key
+li $v0,4
+la $a0,Prompt_AddKey
+syscall
+#read user input of an integer
+li $v0,5	#set syscall to int char
+syscall
+move $s1, $v0	#save user input to $s1
+#trap if user input is not an integer from 0-9
+tgei $s1, 10 #traps any integer from 10 and up
+tlti  $s1, 0 #traps any integer less than 0
+#################################################
+#prompt user to choose a bit to toggle
+li $v0,4
+la $a0,Prompt_ChooseBitToggle
+syscall
+#read user input of an integer
+li $v0,5	#set syscall to read an integer
+syscall
+move $s2, $v0	#save userinput to $s2
+#trap if user input is not an integer from 0-7
+tgei $s2, 8 #traps any integer from 8 and up
+tlti  $s2, 0 #traps any integer less than 0
+#################################################
+#prompt user to enter text
+li $v0,4
+la $a0,Prompt_AskForText
+syscall
+#read user input of a string of character
+la $a0,inputBuffer
+li $a1, 20
+li $v0,8	#set syscall to read string
+syscall
+######################################################################
+#load arguments
+move $a0, $s0
+move $a1, $s1
+move $a2, $s2
+
+#branch to decrypt if $s1 == 'e'
+li $t0, 101
+beq $a0, $t0, encrypt
+#if not 'e' then,
+#branch to decrypt if $s1 == 'd'
+li $t0, 100
+beq $a0, $t0, decrypt
+######################################################################
+#Encrypt
+######################################################################
+encrypt:
+#loop through inputBuffer to change each character in the string
+li $s3, 0 #s3 is our counter, i
+li $s4, 20 #s4 is a constant 20
+#################################################
+for1: #start of loop
+bge $s3, $s4, cl_for1 #if i >= 20 branch
+#############################
+#load inputBuffer[i]
+la $t0, inputBuffer
+add $t0, $t0, $s3
+lb $t0, 0($t0) #temp($t0) = inputBuffer[i]
+#############################
+#save the ith iteration to keep track of which bit contains '\n' is
+move $s5, $s3
+#check if inputBuffer[i] is \n. \n indicates the end of the string
+beq $t0, 10, cl_for1
+#add value of addition key
+add $t0, $t0, $a1 # temp = inputBuffer[i] + addKey
+#############################
+#toggle bit based on bit toggle key
+li $t1, 1
+sllv $t1, $t1, $a2
+xor $v0, $t0,$t1  #apply bit toggle key based on argument temp variable
+#############################
+#save encrypted char to outputBuffer
+la $t1, outputBuffer
+add $t1, $t1, $s3 #outputBuffer[i]
+sb $v0, 0($t1) #assign encrypted character to outputBuffer[i]
+#############################
+addi $s3, $s3, 1 #increment i to encrypt next characcter
+j for1
+#############################
+cl_for1: #end of for loop
+#################################################
+#restore $s1 and $s2 to normal values
+li $s3, 0 #s3 is our counter, i
+li $s4, 20 #s4 is a constant 20
+#############################
+#print encrypted text and exit program
+li $v0,4
+la $a0,Display_EncryptedText
+syscall
+
+la $a0, outputBuffer
+li $v0, 4
+syscall
+
+j cl_program
+######################################################################
+#Decrypt
+######################################################################
+decrypt:
+#loop through inputBuffer to change each character in the string
+li $s3, 0 #s3 is our counter, i
+li $s4, 20 #s4 is a constant 12
+#################################################
+for2: #start of loop
+bge $s3, $s4, cl_for2 #if i >= 20 branch
+#############################
+#load inputBuffer[i]
+la $t0, inputBuffer
+add $t0, $t0, $s3
+lb $t0, 0($t0) #temp(t0) = inputBuffer[i]
+#############################
+#save the ith iteration to keep track of which bit contains '\n' is
+move $s5, $s3
+#branch if inputBuffer[i] is \n. \n indicates the end of the string
+beq $t0, 10, cl_for2
+#toggle bit based on bit toggle key
+li $t1, 1
+sllv $t1, $t1, $a2
+xor $t0, $t0,$t1  #apply bit toggle key based to the temp variable that was assigned as inputBuffer[i]
+#############################
+#subtract value of addition key
+sub $v0, $t0, $a1 # temp = inputBuffer[i] - addKey
+#############################
+#save decrypted char to outputBuffer
+la $t1, outputBuffer
+add $t1, $t1, $s3 #outputBuffer[i]
+sb $v0, 0($t1) #assign encrypted character to outputBuffer[i]
+#############################
+addi $s3, $s3, 1 #increment i to decrypt next characcter
+j for2
+
+cl_for2: #end of for loop
+#################################################
+#restore $s1 and $s2 to normal values
+li $s3, 0 #s3 is our counter, i
+li $s4, 20 #s4 is a constant 20
+#################################################
+#print decrypted text
+li $v0,4
+la $a0,Display_DecryptedText
+syscall
+
+la $a0, outputBuffer
+li $v0, 4
+syscall
+
+j cl_program
+######################################################################
+cl_program:
+######################################################################
